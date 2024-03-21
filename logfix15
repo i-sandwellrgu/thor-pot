@@ -1,0 +1,112 @@
+import socket
+import datetime
+import paramiko
+import os
+import signal
+import sys
+
+# Change the server name here
+HOST = '0.0.0.0'  # Listen on all available interfaces
+PORT = 22  # SSH port
+
+# Variable to control server termination
+terminate_server = False
+
+def get_log_file_name():
+    # Generate log file name based on the current date
+    today_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    return f"ssh_logs_{today_date}.txt"
+
+def log_connection(client_address, username, password, connection_time):
+    # Log connection details only if the message contains "Connection from"
+    if "Connection from" in client_address:
+        # Generate log file name based on the current date
+        today_date = datetime.datetime.now().strftime("%Y-%m-%d")
+        log_file = f"ssh_logs_{today_date}.txt"
+
+        # Get full path to the log file
+        log_file_path = os.path.join(os.getcwd(), log_file)
+
+        try:
+            with open(log_file_path, "a") as logfile:
+                logfile.write(f"{connection_time}: Connection from {client_address}, Username: {username}, Password: {password}\n")
+        except Exception as e:
+            print("Error writing to log file:", e, file=sys.stderr)
+            sys.stderr.flush()  # Flush standard error stream
+
+# Generate RSA key pair for SSH
+key = paramiko.RSAKey.generate(2048)
+
+# Function to handle SSH connections
+def handle_ssh(client):
+    transport = paramiko.Transport(client)
+    transport.add_server_key(key)
+
+    # Implementing a custom SSH server that doesn't send any banner
+    class NoBannerSSHServer(paramiko.ServerInterface):
+        def get_banner(self):
+            return '', ''  # Empty banner and language
+
+    server = NoBannerSSHServer()
+    transport.start_server(server=server)
+
+    # Accepting the SSH session
+    channel = transport.accept(20)
+    if channel is None:
+        print('SSH connection timed out')
+        transport.close()
+        return
+
+    # Collecting client's username
+    username = transport.get_username()
+    print(f'Connection from: {client.getpeername()}, Username: {username}')
+
+    # Waiting for the client's password
+    try:
+        # Send a request for password
+        channel.send('\nPlease enter your password: ')
+
+        # Receive password from client
+        password = channel.recv(1024).decode().strip()
+        print(f'Password received: {password}')
+
+        # Log connection details
+        connection_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_connection(str(client.getpeername()), username, password, connection_time)
+
+        # Close SSH session
+        channel.close()
+    finally:
+        transport.close()
+
+# Signal handler for terminating the server
+def signal_handler(sig, frame):
+    global terminate_server
+    print("Received signal:", sig)
+    print("Terminating server...")
+    terminate_server = True
+
+# Register signal handler for SIGINT (Ctrl+C)
+signal.signal(signal.SIGINT, signal_handler)
+
+# Create a TCP socket and start listening
+listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+listen_socket.bind((HOST, PORT))
+listen_socket.listen(5)  # Allow up to 5 pending connections
+
+print("Serving on port:", PORT)
+
+while not terminate_server:
+    try:
+        client_connection, client_address = listen_socket.accept()
+        print("Connection from:", client_address)
+        handle_ssh(client_connection)
+    except socket.timeout:
+        # Timeout occurred, continue listening
+        print("Timeout occurred while waiting for connections.")
+        pass
+
+# Close the listening socket
+listen_socket.close()
+print("Server stopped.")
