@@ -1,0 +1,45 @@
+def handle_ssh(client):
+    transport = paramiko.Transport(client)
+    transport.add_server_key(paramiko.RSAKey.generate(2048))
+
+    # Implementing a custom SSH server that doesn't send any banner
+    class NoBannerSSHServer(paramiko.ServerInterface):
+        def get_banner(self):
+            return '', ''  # Empty banner and language
+
+    server = NoBannerSSHServer()
+    transport.start_server(server=server)
+
+    # Accepting the SSH session
+    channel = transport.accept(20)
+    if channel is None:
+        logging.error('SSH connection timed out')
+        transport.close()
+        return
+
+    # Collecting client's username
+    username = None
+    try:
+        username = channel.recv(1024).decode().strip()
+        logging.info(f'Username received: {username}')
+    except Exception as e:
+        logging.error(f'Error receiving username: {e}')
+
+    # Waiting for the client's password
+    try:
+        # Send a request for password
+        channel.send('\nPlease enter your password: ')
+
+        # Receive password from client
+        password = channel.recv(1024).decode().strip()
+        logging.info(f'Password received: {password}')
+
+        # Log connection details
+        connection_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        client_address = client.getpeername()[0] if client.getpeername() else "Unknown"
+        log_connection(client_address, username, password, connection_time)
+
+        # Close SSH session
+        channel.close()
+    finally:
+        transport.close()
