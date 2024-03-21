@@ -8,7 +8,7 @@ HOST = '0.0.0.0'  # Listen on all available interfaces
 PORT = 22  # SSH port
 
 # Specify the directory where logs should be saved (absolute path)
-LOGS_DIR = '/path/to/logs/'
+LOGS_DIR = '/home/HonsprojectRGU/LOGS/'
 
 def get_log_file_name():
     # Generate log file name based on the current date
