@@ -1,3 +1,9 @@
+# Refrences https://snyk.io/advisor/python/paramiko/functions/paramiko.RSAKey.generate, https://docs.python.org/3/library/datetime.html, https://github.com/ramonmeza/PythonSSHServerTutorial, https://docs.paramiko.org/en/latest/api/server.html,
+# https://codereview.stackexchange.com/questions/171179/python-script-to-execute-a-command-using-paramiko-ssh, https://readthedocs.org/projects/paramiko-docs/downloads/pdf/2.7/, https://realpython.com/python-sockets/
+#
+
+
+
 import socket
 import datetime
 import paramiko
@@ -9,25 +15,25 @@ import logging
 HOST = '0.0.0.0'  # Listen on all available interfaces
 PORT = 22  # SSH port
 
-# Initialize logging
+# Starts logging 
 log_file_name = f"ssh_logs_{datetime.datetime.now().strftime('%Y-%m-%d')}.txt"
 logging.basicConfig(filename=log_file_name, level=logging.INFO, format='%(asctime)s: %(message)s')
 
-# Variable to control server termination
+# Variable to termanate the server, when changed to true the server terminates
 terminate_server = False
 
-# Function to handle SSH connections
+# This function handles SSH connections and generates the key pairs
 def handle_ssh(client, client_address):
     transport = paramiko.Transport(client)
     transport.add_server_key(paramiko.RSAKey.generate(2048))
 
-    # Implementing a custom SSH server that doesn't send any banner
+    # This function fakes an SSH server, no banner sent as I could not get it to work
     class NoBannerSSHServer(paramiko.ServerInterface):
         def get_banner(self):
-            return '', ''  # Empty banner and language
+            return '', ''  # Empty banner
 
         def check_auth_password(self, username, password):
-            # Log username, password, and client IP address
+            # Logs username, password, and client IP address
             logging.info(f'Connection from: {client_address}, Username: {username}, Password: {password}')
             return paramiko.AUTH_FAILED
 
@@ -56,7 +62,7 @@ def signal_handler(sig, frame):
     logging.info("Terminating server...")
     terminate_server = True
 
-# Register signal handler for SIGINT (Ctrl+C)
+# Register signal handler for SIGINT (Signal Interupt) (Ctrl+C)
 signal.signal(signal.SIGINT, signal_handler)
 
 # Create a TCP socket and start listening
